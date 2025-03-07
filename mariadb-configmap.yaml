@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gr-samples-mariadb-configmap
+data:
+  server-id-offset: "700"
+  database-name: application
+  namespace: k8s-mariadb

@@ -1,0 +1,171 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mariadb-service
+  labels:
+    app: gr-samples-mariadb
+spec:
+  type: ClusterIP
+  clusterIP: None
+  selector:
+    app: gr-samples-mariadb
+  ports:
+  - name: mariadb-port
+    port: 3306
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mariadb-statefulset
+  labels:
+    app: gr-samples-mariadb
+spec:
+  serviceName: mariadb-service
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gr-samples-mariadb
+  template:
+    metadata:
+      labels:
+        app: gr-samples-mariadb
+    spec:
+      restartPolicy: Always
+      initContainers:
+      - name: init-mariadb-primary
+        image: mariadb:latest
+        imagePullPolicy: Always
+        command: ["/scripts/init-mariadb-primary.sh"]
+        env:
+        - name: SERVER_ID_OFFSET
+          valueFrom:
+            configMapKeyRef:
+              name: gr-samples-mariadb-configmap
+              key: server-id-offset
+        - name: DATABASE_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: gr-samples-mariadb-configmap
+              key: database-name
+        - name: NAMESPACE
+          valueFrom:
+            configMapKeyRef:
+              name: gr-samples-mariadb-configmap
+              key: namespace
+        - name: STATEFULSET_NAME
+          value: mariadb-statefulset
+        - name: SVC_NAME
+          value: mariadb-service
+        - name: DATABASE_REPLICATION_USER_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: gr-samples-mariadb-secret
+              key: mariadb-replication-username
+        - name: DATABASE_REPLICATION_USER_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: gr-samples-mariadb-secret
+              key: mariadb-replication-password
+        volumeMounts:
+        - name: mariadb-config
+          mountPath: /etc/mysql/conf.d
+        - name: initdb
+          mountPath: /docker-entrypoint-initdb.d
+        - name: scripts-configmap
+          mountPath: /scripts
+        - name: config-configmap
+          mountPath: /mnt/config-configmap
+        - name: sql-configmap
+          mountPath: /mnt/sql-configmap
+      - name: init-mariadb-replica
+        image: mariadb:latest
+        imagePullPolicy: Always
+        command: ["/scripts/init-mariadb-replica.sh"]
+        env:
+        - name: SERVER_ID_OFFSET
+          valueFrom:
+            configMapKeyRef:
+              name: gr-samples-mariadb-configmap
+              key: server-id-offset
+        - name: DATABASE_NAME
+          valueFrom:
+            configMapKeyRef:
+              name: gr-samples-mariadb-configmap
+              key: database-name
+        - name: NAMESPACE
+          valueFrom:
+            configMapKeyRef:
+              name: gr-samples-mariadb-configmap
+              key: namespace
+        - name: STATEFULSET_NAME
+          value: mariadb-statefulset
+        - name: SVC_NAME
+          value: mariadb-service
+        - name: DATABASE_REPLICATION_USER_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: gr-samples-mariadb-secret
+              key: mariadb-replication-username
+        - name: DATABASE_REPLICATION_USER_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: gr-samples-mariadb-secret
+              key: mariadb-replication-password
+        volumeMounts:
+        - name: mariadb-config
+          mountPath: /etc/mysql/conf.d
+        - name: initdb
+          mountPath: /docker-entrypoint-initdb.d
+        - name: scripts-configmap
+          mountPath: /scripts
+        - name: config-configmap
+          mountPath: /mnt/config-configmap
+        - name: sql-configmap
+          mountPath: /mnt/sql-configmap
+      containers:
+      - name: mariadb
+        image: mariadb:latest
+        ports:
+        - name: mariadb-port
+          containerPort: 3306
+        env:
+        - name: MARIADB_ROOT_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: gr-samples-mariadb-secret
+              key: mariadb-root-password
+        - name: MYSQL_INITDB_SKIP_TZINFO
+          value: "1"
+        volumeMounts:
+        - name: datadir
+          mountPath: /var/lib/mysql
+        - name: mariadb-config
+          mountPath: /etc/mysql/conf.d
+        - name: initdb
+          mountPath: /docker-entrypoint-initdb.d
+      volumes:
+      - name: mariadb-config
+        emptyDir: {}
+      - name: initdb
+        emptyDir: {}
+      - name: scripts-configmap
+        configMap:
+          name: gr-samples-mariadb-scripts-configmap
+          defaultMode: 0550
+      - name: config-configmap
+        configMap:
+          name: gr-samples-mariadb-config-configmap
+          defaultMode: 0550
+      - name: sql-configmap
+        configMap:
+          name: gr-samples-mariadb-sql-configmap
+          defaultMode: 0550
+  volumeClaimTemplates:
+  - metadata:
+      name: datadir
+    spec:
+      storageClassName: docker-sc
+      accessModes: ["ReadWriteOnce"]
+      resources:
+        requests:
+          storage: 80Mi

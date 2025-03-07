@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gr-samples-mariadb-config-configmap
+data:
+  primary.cnf:  |
+    [mariadb]
+    log-bin
+    log-basename=mariadb
+    binlog-format=mixed
+    server_id=${SERVER_ID}
+
+  replica.cnf:  |
+    [mariadb]
+    log-basename=mariadb
+    server_id=${SERVER_ID}
